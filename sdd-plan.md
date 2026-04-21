@@ -232,52 +232,403 @@ Workout created
  → items added
  → logs generated via ExerciseLog
  → workout = immutable record
-# 7. ⚙️ IMPLEMENTATION PLAN
 
-## Phase 1 — Core foundation
-NestJS project setup
-Postgres Docker integration
-Base modules
-Prisma/SQL layer
-## Phase 2 — Exercise system
-ExerciseType
-ExerciseLog
-Metrics system
-## Phase 3 — Workout system
-Workout creation
-WorkoutItems
-Blocks
-## Phase 4 — Analytics
-streak calculation
-cache table
-recompute logic
-## Phase 5 — Auth system
-JWT auth
-refresh tokens
-user profile
 
-# 8. 🧩 TASK DECOMPOSITION
-## Core backend
- setup NestJS structure
- setup Postgres connection
- create migration system
-## Exercise module
- ExerciseType CRUD
- ExerciseLog creation endpoint
- metrics storage
- validation layer
-## Workout module
- Workout create
- WorkoutItem linking
- completion flow
-## Analytics module
- streak calculation SQL
- cache table design
- recalculation logic
-## Auth module
- JWT auth
- session management
- MFA support (future-ready)
+# 7. ⚙️ IMPLEMENTATION PLAN 
+
+---
+
+# 🧱 Phase 1 — Core foundation (System bootstrap)
+
+## 1.1 Goals
+Создать базовую инфраструктуру backend системы:
+- NestJS application skeleton
+- PostgreSQL connection via Docker
+- базовая архитектура модулей
+- базовый DB access layer (ORM + raw SQL hybrid)
+
+---
+
+## 1.2 Scope (what is included)
+
+- NestJS project initialization
+- Docker PostgreSQL setup
+- DB schema initialization (init scripts)
+- Prisma or pg client setup (hybrid approach)
+- Base module structure (empty modules)
+- Logging foundation (request + error logs)
+- Error system (DomainError base)
+- Env configuration system
+
+---
+
+## 1.3 Detailed Tasks
+
+### Project setup
+- [ ] Initialize NestJS project
+- [ ] Configure folder structure:
+```
+  src/
+  modules/
+  shared/
+``` 
+
+- [ ] Setup environment variables (.env)
+- [ ] Setup config module (DB, JWT, etc.)
+
+---
+
+### Database (Docker + Postgres)
+- [ ] Configure docker-compose for Postgres
+- [ ] Create persistent volume (pgdata)
+- [ ] Add init SQL scripts:
+- schema initialization
+- seed data (basic ExerciseTypes)
+- [ ] Ensure DB persistence across restarts
+
+---
+
+### DB access layer (Hybrid model)
+- [ ] Setup ORM layer (Prisma OR pg client abstraction)
+- [ ] Define Repository pattern:
+- CRUD via ORM
+- analytics via raw SQL
+- [ ] Create base Repository class
+
+---
+
+### Core infrastructure
+- [ ] Implement DomainError system
+- [ ] Setup global exception filter (NestJS)
+- [ ] Setup logging:
+- request logging middleware
+- SQL logging (dev mode)
+
+---
+
+---
+
+# 🏋️ Phase 2 — Exercise System (CORE DOMAIN)
+
+## 2.1 Goals
+Создать основную систему логирования упражнений:
+- ExerciseType catalog
+- ExerciseLog system (source of truth)
+- flexible metrics system
+
+---
+
+## 2.2 Scope
+
+- ExerciseCategory hierarchy
+- ExerciseType (system + user custom)
+- ExerciseLog (mutable event-like entity)
+- ExerciseLogMetric (key/value flexible model)
+- validation layer for logs
+
+---
+
+## 2.3 Detailed Tasks
+
+### ExerciseCategory
+- [ ] Create entity model
+- [ ] Support hierarchical categories (parent_id)
+- [ ] Seed base categories (Push, Pull, Legs, Cardio)
+
+---
+
+### ExerciseType
+- [ ] Create ExerciseType entity
+- [ ] Fields:
+- name
+- primary_metric
+- equipment_type
+- system/user flag
+- [ ] Implement CRUD endpoints
+- [ ] Separate system vs user types logic
+
+---
+
+### ExerciseLog (core system)
+- [ ] Create ExerciseLog entity
+- [ ] Implement POST /exercise/log
+- [ ] Extract userId from JWT context
+- [ ] Store performedAt timestamp
+- [ ] Support UPDATE operation
+
+---
+
+### ExerciseLogMetric system
+- [ ] Implement key/value storage
+- [ ] Validate metric structure in service layer
+- [ ] Support flexible metrics:
+- reps
+- weight_kg
+- duration_sec
+- distance_m
+
+---
+
+### Validation rules
+- [ ] DTO validation (format)
+- [ ] Service validation (business rules)
+- [ ] Reject invalid metrics keys
+
+---
+
+---
+
+# 🏃 Phase 3 — Workout System (STRUCTURED EXECUTION LAYER)
+
+## 3.1 Goals
+Добавить структуру тренировок поверх ExerciseLog.
+
+---
+
+## 3.2 Scope
+
+- Workout creation
+- Workout items
+- Workout blocks (optional grouping)
+- Completion flow (Workout → ExerciseLogs)
+
+---
+
+## 3.3 Detailed Tasks
+
+### Workout entity
+- [ ] Create Workout model
+- [ ] Fields:
+- name
+- started_at
+- finished_at
+- [ ] POST /workout (create empty workout)
+
+---
+
+### WorkoutItems
+- [ ] Create WorkoutItem entity
+- [ ] Link to ExerciseType
+- [ ] Add ordering support (order_index)
+- [ ] Optional link to ExerciseLog
+
+---
+
+### WorkoutBlocks (optional grouping)
+- [ ] Implement block structure
+- [ ] Support grouping exercises (supersets / rounds)
+
+---
+
+### Workout execution flow
+- [ ] Create workout
+- [ ] Add items
+- [ ] On completion:
+- generate ExerciseLog entries
+- mark workout as completed
+- [ ] Workout becomes immutable after completion
+
+---
+
+---
+
+# 📊 Phase 4 — Analytics System (STREAK + READ MODELS)
+
+## 4.1 Goals
+Построить систему аналитики на основе ExerciseLog:
+- streak calculation
+- cached read models
+- SQL fallback logic
+
+---
+
+## 4.2 Scope
+
+- streak calculation
+- cache table (derived state)
+- recomputation logic
+- analytics endpoints
+
+---
+
+## 4.3 Detailed Tasks
+
+### Streak system (core)
+- [ ] Define streak logic (daily consecutive logs)
+- [ ] Implement SQL-based streak calculation
+- [ ] Create GET /analytics/streak endpoint
+
+---
+
+### Cache layer
+- [ ] Create streak cache table (UserStreakCache)
+- [ ] Store:
+- current streak
+- last update date
+- [ ] Update cache on new ExerciseLog
+
+---
+
+### Recalculation logic
+- [ ] Mark cache as “dirty” on UPDATE ExerciseLog
+- [ ] Implement full SQL recalculation fallback
+- [ ] Add POST /analytics/recalculate endpoint
+
+---
+
+### Analytics endpoints
+- [ ] GET /analytics/streak
+- [ ] GET /analytics/summary (future-ready)
+
+---
+
+---
+
+# 🔐 Phase 5 — Auth System (SECURITY LAYER)
+
+## 5.1 Goals
+Обеспечить безопасный доступ к системе.
+
+---
+
+## 5.2 Scope
+
+- JWT authentication
+- refresh tokens
+- user profile
+- session tracking (lightweight)
+
+---
+
+## 5.3 Detailed Tasks
+
+### JWT system
+- [ ] Implement JWT access token
+- [ ] Implement refresh token flow
+- [ ] Create Auth guards (NestJS)
+
+---
+
+### User system
+- [ ] User entity
+- [ ] UserProfile entity
+- [ ] Link profile to user
+
+---
+
+### Auth endpoints
+- [ ] POST /auth/login
+- [ ] POST /auth/refresh
+- [ ] POST /auth/logout
+
+---
+
+### Security rules
+- [ ] Extract userId from JWT only
+- [ ] No userId from client input
+- [ ] Add request context injection
+
+---
+
+---
+
+# 8. 🧩 TASK DECOMPOSITION (LOW-LEVEL EXECUTION PLAN)
+
+---
+
+# 🧱 Core Backend Setup
+
+- [ ] Create NestJS project structure
+- [ ] Setup modular architecture (modules folder)
+- [ ] Setup config system (.env)
+- [ ] Setup PostgreSQL connection
+- [ ] Setup Docker environment
+- [ ] Setup logging middleware
+- [ ] Setup global exception filter (DomainError)
+
+---
+
+# 🗄 Database Layer
+
+- [ ] Setup ORM (Prisma or pg abstraction)
+- [ ] Implement Repository pattern
+- [ ] Create base repository class
+- [ ] Implement raw SQL executor for analytics
+- [ ] Setup migrations system (SQL-based)
+
+---
+
+# 🏋️ Exercise Module
+
+- [ ] Create ExerciseCategory module
+- [ ] Create ExerciseType module
+- [ ] Implement CRUD endpoints for ExerciseType
+- [ ] Create ExerciseLog entity
+- [ ] Implement POST /exercise/log
+- [ ] Implement GET /exercise/logs
+- [ ] Implement ExerciseLogMetric system
+- [ ] Add DTO validation
+- [ ] Add service-level validation rules
+
+---
+
+# 🏃 Workout Module
+
+- [ ] Create Workout entity
+- [ ] Implement POST /workout
+- [ ] Implement GET /workout/:id
+- [ ] Create WorkoutItem entity
+- [ ] Implement linking ExerciseType → WorkoutItem
+- [ ] Implement workout completion flow
+- [ ] Generate ExerciseLog from Workout completion
+
+---
+
+# 📊 Analytics Module
+
+- [ ] Implement streak SQL calculation
+- [ ] Create streak cache table
+- [ ] Implement cache update on ExerciseLog insert
+- [ ] Implement cache invalidation on update
+- [ ] Implement recalculation endpoint
+- [ ] Implement GET /analytics/streak
+- [ ] Implement GET /analytics/summary
+
+---
+
+# 🔐 Auth Module
+
+- [ ] Implement JWT authentication
+- [ ] Implement refresh token system
+- [ ] Create auth guards
+- [ ] Implement login/logout endpoints
+- [ ] Setup request user context injection
+
+---
+
+# 🧠 Shared Infrastructure
+
+- [ ] DomainError system
+- [ ] Logging system (request + SQL)
+- [ ] Validation layer (DTO + service)
+- [ ] Utility helpers (date, metrics, etc.)
+
+---
+
+# 📌 FINAL NOTE
+
+This plan defines:
+
+- full backend architecture
+- execution phases
+- granular task breakdown
+- data flow model
+- analytics strategy
+- authentication model
+- database interaction strategy
+
+
+
 # 9. 💻 CODE STRUCTURE (NESTJS)
 src/
   modules/
