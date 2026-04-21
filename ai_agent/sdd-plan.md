@@ -685,6 +685,193 @@ Async analytics processing
 Microservices split (Analytics separation)
 AI recommendations
 
+# 13. 🧱 ORM STRATEGY (NestJS + Prisma/pg HYBRID MODEL)
+
+## 13.1 Core Decision
+
+Система использует **гибридный подход**:
+
+- ORM (Prisma или equivalent) → CRUD операции
+- Raw SQL (pg / query builder) → аналитика и сложные запросы
+
+---
+
+## 13.2 Boundaries Rule
+
+### ORM is used for:
+- User CRUD
+- ExerciseType CRUD
+- Workout CRUD
+- simple inserts/updates
+
+### Raw SQL is used for:
+- streak calculation
+- analytics queries
+- aggregation queries
+- performance-critical reads
+
+---
+
+## 13.3 Repository Rule (IMPORTANT)
+
+Каждый repository обязан явно разделять:
+
+```ts
+class ExerciseRepository {
+  // ORM
+  createLog()
+
+  // RAW SQL
+  calculateStreak()
+}
+```
+13.4 Anti-pattern (forbidden)
+ORM joins for analytics
+business logic inside ORM models
+mixing SQL + ORM in same method
+
+14. 🔌 FULL API CONTRACT (EXPANDED SPECIFICATION)
+14.1 Auth Context Rule (applies to ALL endpoints)
+❌ запрещено:
+{ "userId": "client-sent" }
+✅ правильно:
+req.user.id
+14.2 ExerciseLog API
+Create log
+POST /exercise/log
+{
+  "exerciseTypeId": "uuid",
+  "metrics": {
+    "reps": 12,
+    "weight_kg": 80
+  },
+  "performedAt": "optional"
+}
+Get logs
+GET /exercise/logs?from=&to=&exerciseTypeId=
+Update log
+PATCH /exercise/log/:id
+
+Rules:
+
+update allowed
+must trigger analytics invalidation
+14.3 ExerciseType API
+GET /exercise/types
+POST /exercise/types
+PATCH /exercise/types/:id
+
+Rule:
+
+system types are read-only for users
+14.4 Workout API
+POST /workout
+GET /workout/:id
+POST /workout/:id/complete
+14.5 Analytics API
+GET /analytics/streak
+GET /analytics/summary
+POST /analytics/recalculate
+15. 🔄 DETAILED DATA FLOWS (CRITICAL BEHAVIOR MODEL)
+15.1 ExerciseLog CREATE FLOW (FULL)
+Controller
+ → extract user from JWT
+ → validate DTO
+ → Service
+     → validate metrics
+     → Repository (ORM insert)
+     → trigger Analytics update
+         → update cache OR mark dirty
+15.2 ExerciseLog UPDATE FLOW (IMPORTANT EDGE CASE)
+PATCH log
+ → update DB record
+ → invalidate streak cache
+ → mark analytics as DIRTY
+15.3 STREAK FLOW (FINAL MODEL)
+GET /analytics/streak
+ → check cache
+ → if valid → return
+ → if dirty → run SQL recompute
+ → update cache
+ → return result
+15.4 WORKOUT FLOW
+create workout
+ → add items
+ → optional blocks
+
+complete workout
+ → generate ExerciseLogs
+ → persist logs
+ → mark workout immutable
+ → trigger analytics update
+16. 🧠 ANALYTICS MODEL (STREAK — FORMAL DEFINITION)
+16.1 Definition
+
+Streak = number of consecutive days with ≥1 ExerciseLog
+
+16.2 SQL Strategy
+group logs by date
+order by date ASC
+compute consecutive day sequences
+16.3 Cache Model
+UserStreakCache {
+  userId
+  currentStreak
+  lastActivityDate
+  isDirty
+}
+16.4 Edge Rule
+
+If ExerciseLog is:
+
+updated
+deleted
+moved in time
+
+→ streak becomes DIRTY
+
+17. ⚙️ ORM vs RAW SQL FINAL RULESET
+17.1 Decision Matrix
+Operation	Tool
+CRUD	ORM
+Auth	ORM
+Logs insert	ORM
+Analytics	RAW SQL
+Streak	RAW SQL
+Aggregations	RAW SQL
+17.2 Reason
+ORM = safety + speed of dev
+SQL = performance + control
+18. 🔐 AUTH CONTEXT RULE (CRITICAL)
+18.1 Global Rule
+
+Every request must have:
+
+request.user.id
+18.2 Responsibility split
+Controller → extract user
+Guard → validate JWT
+Service → trust user context
+Repository → no auth logic
+19. 🧪 EDGE CASES (SYSTEM BEHAVIOR CONTRACT)
+19.1 ExerciseLog UPDATE
+allowed
+invalidates analytics
+may change streak history
+19.2 ExerciseType change
+affects ONLY future logs
+past logs remain unchanged
+19.3 Workout modification
+allowed only before completion
+after completion = immutable
+19.4 Metric schema mismatch
+reject invalid keys
+no silent normalization
+19.5 Time corrections
+performedAt change triggers:
+analytics recalculation
+streak invalidation
+
 # 📌 FINAL SUMMARY
 
 System characteristics:
