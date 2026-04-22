@@ -20,19 +20,17 @@ export interface AppConfig {
 
 @Injectable()
 export class ConfigService {
-  private readonly env: Record<string, string>;
-
-  constructor() {
-    this.env = process.env as Record<string, string>;
+  private get env(): NodeJS.ProcessEnv {
+    return process.env;
   }
 
   get database(): DatabaseConfig {
     return {
       host: this.env['DB_HOST'] || 'localhost',
       port: parseInt(this.env['DB_PORT'] || '5432', 10),
-      username: this.env['POSTGRES_USER'] || 'app_user',
-      password: this.env['POSTGRES_PASSWORD'] || 'app_password',
-      database: this.env['POSTGRES_DB'] || 'fitness_db',
+      username: this.env['DB_USERNAME'] || 'sporttrack_user',
+      password: this.env['DB_PASSWORD'] || 'secure_password_123',
+      database: this.env['DB_DATABASE'] || 'sporttrack_db',
     };
   }
 
