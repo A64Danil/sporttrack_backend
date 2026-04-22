@@ -1,5 +1,6 @@
-import { Pool } from 'pg';
+import { Pool, QueryResultRow } from 'pg';
 import { ConfigService } from '../../modules/config/config.service';
+import { logSql } from './sql-logger';
 
 /**
  * Base Repository class with hybrid approach:
@@ -23,18 +24,29 @@ export abstract class BaseRepository {
     });
   }
 
+  protected async executeQuery<T extends QueryResultRow = any>(
+    text: string,
+    values?: unknown[],
+  ) {
+    logSql(text, values);
+    return this.pool.query<T>(text, values);
+  }
+
   /**
    * CRUD: Find one by id
    */
-  async findById<T>(table: string, id: string): Promise<T | null> {
-    const result = await this.pool.query(`SELECT * FROM "${table}" WHERE id = $1`, [id]);
+  async findById<T extends QueryResultRow>(
+    table: string,
+    id: string,
+  ): Promise<T | null> {
+    const result = await this.executeQuery<T>(`SELECT * FROM "${table}" WHERE id = $1`, [id]);
     return (result.rows[0] as T) || null;
   }
 
   /**
    * CRUD: Find all with optional filters
    */
-  async findAll<T>(
+  async findAll<T extends QueryResultRow>(
     table: string,
     filters?: Record<string, unknown>,
     limit = 100,
@@ -52,14 +64,17 @@ export abstract class BaseRepository {
     }
 
     query += ` LIMIT ${limit} OFFSET ${offset}`;
-    const result = await this.pool.query(query, params);
+    const result = await this.executeQuery<T>(query, params);
     return result.rows as T[];
   }
 
   /**
    * CRUD: Insert record
    */
-  async insert<T>(table: string, data: Record<string, unknown>): Promise<T> {
+  async insert<T extends QueryResultRow>(
+    table: string,
+    data: Record<string, unknown>,
+  ): Promise<T> {
     const keys = Object.keys(data);
     const values = Object.values(data);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
@@ -70,14 +85,14 @@ export abstract class BaseRepository {
       RETURNING *
     `;
 
-    const result = await this.pool.query(query, values);
+    const result = await this.executeQuery<T>(query, values);
     return result.rows[0] as T;
   }
 
   /**
    * CRUD: Update record
    */
-  async update<T>(
+  async update<T extends QueryResultRow>(
     table: string,
     id: string,
     data: Record<string, unknown>
@@ -90,7 +105,7 @@ export abstract class BaseRepository {
       UPDATE "${table}" SET ${setClause} WHERE id = $1 RETURNING *
     `;
 
-    const result = await this.pool.query(query, [id, ...values]);
+    const result = await this.executeQuery<T>(query, [id, ...values]);
     return (result.rows[0] as T) || null;
   }
 
@@ -98,15 +113,18 @@ export abstract class BaseRepository {
    * CRUD: Delete record (soft delete recommended)
    */
   async delete(table: string, id: string): Promise<boolean> {
-    const result = await this.pool.query(`DELETE FROM "${table}" WHERE id = $1`, [id]);
+    const result = await this.executeQuery(`DELETE FROM "${table}" WHERE id = $1`, [id]);
     return result.rowCount !== null && result.rowCount > 0;
   }
 
   /**
    * Analytics: Raw SQL executor for complex queries
    */
-  async executeRaw<T>(sql: string, params?: unknown[]): Promise<T[]> {
-    const result = await this.pool.query(sql, params);
+  async executeRaw<T extends QueryResultRow>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<T[]> {
+    const result = await this.executeQuery<T>(sql, params);
     return result.rows as T[];
   }
 
@@ -125,7 +143,7 @@ export abstract class BaseRepository {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    const result = await this.pool.query(query, params);
+    const result = await this.executeQuery(query, params);
     return parseInt(result.rows[0]?.count || '0', 10);
   }
 

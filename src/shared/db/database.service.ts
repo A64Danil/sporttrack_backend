@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Pool } from 'pg';
 import { ConfigService } from '../../modules/config/config.service';
+import { logSql } from './sql-logger';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -31,6 +32,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     text: string,
     values?: any[],
   ): Promise<{ rows: T[]; rowCount: number }> {
+    logSql(text, values);
     const result = await this.pool.query(text, values);
     return {
       rows: result.rows as T[],
