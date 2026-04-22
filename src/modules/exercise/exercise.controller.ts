@@ -9,6 +9,7 @@ import {
   BadRequestException,
   NotFoundException,
   UsePipes,
+  Req,
 } from '@nestjs/common';
 import { ExerciseService } from './exercise.service';
 import {
@@ -19,6 +20,8 @@ import {
   GetExerciseLogsQueryDto,
 } from './dto/exercise.dto';
 import { ExerciseValidationPipe } from '../../shared/validation/exercise-validation.pipe';
+import type { RequestWithUser } from '../../shared/http/request-user';
+import { getRequestUserId } from '../../shared/http/request-user';
 
 @Controller('exercise')
 @UsePipes(ExerciseValidationPipe)
@@ -34,10 +37,10 @@ export class ExerciseController {
   @Post('log')
   async createLog(
     @Body() dto: CreateExerciseLogDto,
+    @Req() request: RequestWithUser,
   ) {
     try {
-      // Mock userId - in real app use JWT guard
-      const userId = '11111111-1111-1111-1111-111111111111';
+      const userId = getRequestUserId(request as RequestWithUser);
       const result = await this.service.createExerciseLog(userId, dto);
       return {
         success: true,
@@ -58,9 +61,9 @@ export class ExerciseController {
   @Get('logs')
   async getLogs(
     @Query() query: GetExerciseLogsQueryDto,
+    @Req() request: RequestWithUser,
   ) {
-    // Mock userId
-    const userId = '11111111-1111-1111-1111-111111111111';
+    const userId = getRequestUserId(request as RequestWithUser);
 
     const logs = await this.service.getExerciseLogs(userId, {
       from: query.from,
@@ -82,8 +85,8 @@ export class ExerciseController {
    * Get single exercise log
    */
   @Get('log/:id')
-  async getLog(@Param('id') id: string) {
-    const userId = '11111111-1111-1111-1111-111111111111';
+  async getLog(@Param('id') id: string, @Req() request: RequestWithUser) {
+    const userId = getRequestUserId(request as RequestWithUser);
     const log = await this.service.getExerciseLog(userId, id);
 
     if (!log) {
@@ -104,8 +107,9 @@ export class ExerciseController {
   async updateLog(
     @Param('id') id: string,
     @Body() dto: UpdateExerciseLogDto,
+    @Req() request: RequestWithUser,
   ) {
-    const userId = '11111111-1111-1111-1111-111111111111';
+    const userId = getRequestUserId(request as RequestWithUser);
     const updated = await this.service.updateExerciseLog(userId, id, dto);
 
     if (!updated) {
