@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { ExerciseRepository } from './exercise.repository';
 import {
   CreateExerciseLogDto,
@@ -6,7 +10,19 @@ import {
   CreateExerciseTypeDto,
   UpdateExerciseTypeDto,
 } from './dto/exercise.dto';
-import { ExerciseLog, ExerciseType } from '../../shared/db/entities';
+import {
+  ExerciseLog,
+  ExerciseLogMetric,
+  ExerciseType,
+} from '../../shared/db/entities';
+
+type ExerciseLogDetails = {
+  id: string;
+  userId: string;
+  exerciseTypeId: string;
+  performedAt: Date;
+  metrics: Record<string, number>;
+};
 
 @Injectable()
 export class ExerciseService {
@@ -17,67 +33,59 @@ export class ExerciseService {
   async createExerciseLog(
     userId: string,
     dto: CreateExerciseLogDto,
-  ): Promise<{
-    id: string;
-    userId: string;
-    exerciseTypeId: string;
-    performedAt: Date;
-    metrics: Record<string, number>;
-  }> {
-    // Verify exercise type exists
-    const exerciseType = await this.repository.getExerciseType(
-      dto.exerciseTypeId,
-    );
-    if (!exerciseType) {
-      throw new BadRequestException('Exercise type not found');
-    }
+  ): Promise<ExerciseLogDetails> {
+    return this.repository.transaction(async (executor) => {
+      const exerciseType = await this.repository.getExerciseType(
+        dto.exerciseTypeId,
+        executor,
+      );
 
-    // Validate metrics based on primary metric
-    this.validateMetrics(dto.metrics, exerciseType);
+      if (!exerciseType) {
+        throw new BadRequestException('Exercise type not found');
+      }
 
-    // Create log
-    const performedAt = dto.performedAt
-      ? new Date(dto.performedAt)
-      : new Date();
+      this.validateMetrics(dto.metrics, exerciseType);
 
-    const log = await this.repository.createExerciseLog({
-      userId,
-      exerciseTypeId: dto.exerciseTypeId,
-      performedAt,
+      const performedAt = dto.performedAt
+        ? new Date(dto.performedAt)
+        : new Date();
+
+      const log = await this.repository.createExerciseLog(
+        {
+          userId,
+          exerciseTypeId: dto.exerciseTypeId,
+          performedAt,
+        },
+        executor,
+      );
+
+      if (!log) {
+        throw new BadRequestException('Failed to create exercise log');
+      }
+
+      await this.repository.replaceMetricsForLog(log.id, dto.metrics, executor);
+
+      return this.buildLogDetails(log, dto.metrics);
     });
-
-    if (!log) {
-      throw new BadRequestException('Failed to create exercise log');
-    }
-
-    // Add metrics
-    for (const [key, value] of Object.entries(dto.metrics)) {
-      await this.repository.addMetric({
-        exerciseLogId: log.id,
-        key,
-        value: parseFloat(String(value)),
-      });
-    }
-
-    return {
-      id: log.id,
-      userId: log.userId,
-      exerciseTypeId: log.exerciseTypeId,
-      performedAt: log.performedAt,
-      metrics: dto.metrics,
-    };
   }
 
   async getExerciseLog(
     userId: string,
     logId: string,
-  ): Promise<{
-    id: string;
-    userId: string;
-    exerciseTypeId: string;
-    performedAt: Date;
-    metrics: Record<string, number>;
-  } | null> {
+  ): Promise<ExerciseLogDetails | null> {
+    const log = await this.repository.getExerciseLog(logId);
+
+    if (!log || log.userId !== userId) {
+      return null;
+    }
+
+    return this.loadLogDetails(log);
+  }
+
+  async getExerciseLogMetrics(
+    userId: string,
+    logId: string,
+  ): Promise<{ id: string; exerciseTypeId: string; metrics: Record<string, number> } | null> {
     const log = await this.repository.getExerciseLog(logId);
 
     if (!log || log.userId !== userId) {
@@ -85,18 +93,11 @@ export class ExerciseService {
     }
 
     const metrics = await this.repository.getMetricsByLog(logId);
-    const metricsObject: Record<string, number> = {};
-
-    for (const metric of metrics) {
-      metricsObject[metric.key] = metric.value;
-    }
 
     return {
       id: log.id,
-      userId: log.userId,
       exerciseTypeId: log.exerciseTypeId,
-      performedAt: log.performedAt,
-      metrics: metricsObject,
+      metrics: this.mapMetricsToObject(metrics),
     };
   }
 
@@ -109,7 +110,7 @@ export class ExerciseService {
       limit?: number;
       offset?: number;
     },
-  ): Promise<any[]> {
+  ): Promise<ExerciseLogDetails[]> {
     const limit = Math.min(query.limit || 100, 1000);
     const offset = query.offset || 0;
 
@@ -125,27 +126,7 @@ export class ExerciseService {
       logs = await this.repository.getExerciseLogsByUser(userId, limit, offset);
     }
 
-    // Enrich with metrics
-    const enriched = await Promise.all(
-      logs.map(async (log) => {
-        const metrics = await this.repository.getMetricsByLog(log.id);
-        const metricsObject: Record<string, number> = {};
-
-        for (const metric of metrics) {
-          metricsObject[metric.key] = metric.value;
-        }
-
-        return {
-          id: log.id,
-          userId: log.userId,
-          exerciseTypeId: log.exerciseTypeId,
-          performedAt: log.performedAt,
-          metrics: metricsObject,
-        };
-      }),
-    );
-
-    return enriched;
+    return Promise.all(logs.map((log) => this.loadLogDetails(log)));
   }
 
   async updateExerciseLog(
@@ -166,12 +147,41 @@ export class ExerciseService {
     return this.repository.updateExerciseLog(logId, performedAt);
   }
 
+  async replaceExerciseLogMetrics(
+    userId: string,
+    logId: string,
+    metrics: Record<string, number>,
+  ): Promise<ExerciseLogDetails | null> {
+    return this.repository.transaction(async (executor) => {
+      const log = await this.repository.getExerciseLog(logId, executor);
+
+      if (!log || log.userId !== userId) {
+        return null;
+      }
+
+      const exerciseType = await this.repository.getExerciseType(
+        log.exerciseTypeId,
+        executor,
+      );
+
+      if (!exerciseType) {
+        throw new BadRequestException('Exercise type not found');
+      }
+
+      this.validateMetrics(metrics, exerciseType);
+
+      await this.repository.replaceMetricsForLog(log.id, metrics, executor);
+
+      return this.buildLogDetails(log, metrics);
+    });
+  }
+
   // ==================== ExerciseType Operations ====================
 
   async createExerciseType(
+    userId: string,
     dto: CreateExerciseTypeDto,
   ): Promise<ExerciseType | null> {
-    // Validate primary metric
     const validMetrics = ['reps', 'time', 'distance', 'weight'];
     if (!validMetrics.includes(dto.primaryMetric)) {
       throw new BadRequestException(
@@ -179,7 +189,6 @@ export class ExerciseService {
       );
     }
 
-    // Validate equipment type
     const validEquipment = [
       'bodyweight',
       'barbell',
@@ -193,7 +202,6 @@ export class ExerciseService {
       );
     }
 
-    // Validate category if provided
     if (dto.categoryId) {
       const category = await this.repository.getCategory(dto.categoryId);
       if (!category) {
@@ -201,8 +209,14 @@ export class ExerciseService {
       }
     }
 
+    const existing = await this.repository.getExerciseTypeByName(dto.name);
+    if (existing) {
+      throw new BadRequestException('Exercise type with this name already exists');
+    }
+
     const result = await this.repository.createExerciseType({
       ...dto,
+      createdByUserId: userId,
       isSystem: false,
     });
 
@@ -221,6 +235,10 @@ export class ExerciseService {
     return this.repository.getAllExerciseTypes();
   }
 
+  async getUserExerciseTypes(userId: string): Promise<ExerciseType[]> {
+    return this.repository.getUserExerciseTypes(userId);
+  }
+
   async getSystemExerciseTypes(): Promise<ExerciseType[]> {
     return this.repository.getSystemExerciseTypes();
   }
@@ -230,6 +248,7 @@ export class ExerciseService {
   }
 
   async updateExerciseType(
+    userId: string,
     id: string,
     dto: UpdateExerciseTypeDto,
   ): Promise<ExerciseType | null> {
@@ -238,12 +257,35 @@ export class ExerciseService {
       return null;
     }
 
-    // System types cannot be updated (read-only)
     if (exerciseType.isSystem) {
-      throw new BadRequestException('System exercise types cannot be updated');
+      throw new ForbiddenException('System exercise types cannot be updated');
     }
 
+    this.assertExerciseTypeOwnership(exerciseType, userId);
+
     return this.repository.updateExerciseType(id, dto);
+  }
+
+  async deleteExerciseType(userId: string, id: string): Promise<boolean> {
+    const exerciseType = await this.repository.getExerciseType(id);
+    if (!exerciseType) {
+      return false;
+    }
+
+    if (exerciseType.isSystem) {
+      throw new ForbiddenException('System exercise types cannot be deleted');
+    }
+
+    this.assertExerciseTypeOwnership(exerciseType, userId);
+
+    const linkedLogs = await this.repository.countExerciseLogsByType(id);
+    if (linkedLogs > 0) {
+      throw new BadRequestException(
+        'Exercise type cannot be deleted because it is used by existing logs',
+      );
+    }
+
+    return this.repository.deleteExerciseType(id);
   }
 
   // ==================== Validation Helpers ====================
@@ -252,12 +294,51 @@ export class ExerciseService {
     metrics: Record<string, number>,
     exerciseType: ExerciseType,
   ): void {
-    // Primary metric must be present
     if (!(exerciseType.primaryMetric in metrics)) {
       throw new BadRequestException(
         `Primary metric "${exerciseType.primaryMetric}" is required`,
       );
     }
+  }
+
+  private assertExerciseTypeOwnership(
+    exerciseType: ExerciseType,
+    userId: string,
+  ): void {
+    if (!exerciseType.isSystem && exerciseType.createdByUserId !== userId) {
+      throw new ForbiddenException('You can only modify your own exercise types');
+    }
+  }
+
+  private mapMetricsToObject(
+    metrics: ExerciseLogMetric[],
+  ): Record<string, number> {
+    const result: Record<string, number> = {};
+
+    for (const metric of metrics) {
+      result[metric.key] = metric.value;
+    }
+
+    return result;
+  }
+
+  private buildLogDetails(
+    log: ExerciseLog,
+    metrics: Record<string, number>,
+  ): ExerciseLogDetails {
+    return {
+      id: log.id,
+      userId: log.userId,
+      exerciseTypeId: log.exerciseTypeId,
+      performedAt: log.performedAt,
+      metrics,
+    };
+  }
+
+  private async loadLogDetails(log: ExerciseLog): Promise<ExerciseLogDetails> {
+    const metrics = await this.repository.getMetricsByLog(log.id);
+
+    return this.buildLogDetails(log, this.mapMetricsToObject(metrics));
   }
 
   // ==================== Analytics ====================

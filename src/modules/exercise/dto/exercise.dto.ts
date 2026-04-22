@@ -10,6 +10,11 @@ export class UpdateExerciseLogDto {
   performedAt?: string; // ISO string
 }
 
+// Replace Exercise Log Metrics DTO
+export class UpdateExerciseLogMetricsDto {
+  metrics: Record<string, number>;
+}
+
 // Create Exercise Type DTO
 export class CreateExerciseTypeDto {
   categoryId?: string;

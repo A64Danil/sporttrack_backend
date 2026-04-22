@@ -3,10 +3,11 @@ import {
   Post,
   Get,
   Patch,
+  Put,
+  Delete,
   Body,
   Param,
   Query,
-  BadRequestException,
   NotFoundException,
   UsePipes,
   Req,
@@ -15,6 +16,7 @@ import { ExerciseService } from './exercise.service';
 import {
   CreateExerciseLogDto,
   UpdateExerciseLogDto,
+  UpdateExerciseLogMetricsDto,
   CreateExerciseTypeDto,
   UpdateExerciseTypeDto,
   GetExerciseLogsQueryDto,
@@ -39,19 +41,13 @@ export class ExerciseController {
     @Body() dto: CreateExerciseLogDto,
     @Req() request: RequestWithUser,
   ) {
-    try {
-      const userId = getRequestUserId(request as RequestWithUser);
-      const result = await this.service.createExerciseLog(userId, dto);
-      return {
-        success: true,
-        data: result,
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new BadRequestException(error.message);
-    }
+    const userId = getRequestUserId(request);
+    const result = await this.service.createExerciseLog(userId, dto);
+
+    return {
+      success: true,
+      data: result,
+    };
   }
 
   /**
@@ -63,7 +59,7 @@ export class ExerciseController {
     @Query() query: GetExerciseLogsQueryDto,
     @Req() request: RequestWithUser,
   ) {
-    const userId = getRequestUserId(request as RequestWithUser);
+    const userId = getRequestUserId(request);
 
     const logs = await this.service.getExerciseLogs(userId, {
       from: query.from,
@@ -86,7 +82,7 @@ export class ExerciseController {
    */
   @Get('log/:id')
   async getLog(@Param('id') id: string, @Req() request: RequestWithUser) {
-    const userId = getRequestUserId(request as RequestWithUser);
+    const userId = getRequestUserId(request);
     const log = await this.service.getExerciseLog(userId, id);
 
     if (!log) {
@@ -100,6 +96,29 @@ export class ExerciseController {
   }
 
   /**
+   * GET /exercise/log/:id/metrics
+   * Get metrics for a single exercise log
+   */
+  @Get('log/:id/metrics')
+  async getLogMetrics(
+    @Param('id') id: string,
+    @Req() request: RequestWithUser,
+  ) {
+    const userId = getRequestUserId(request);
+    const metrics = await this.service.getExerciseLogMetrics(userId, id);
+
+    if (!metrics) {
+      throw new NotFoundException('Exercise log not found');
+    }
+
+    return {
+      success: true,
+      data: metrics,
+      count: Object.keys(metrics.metrics).length,
+    };
+  }
+
+  /**
    * PATCH /exercise/log/:id
    * Update exercise log
    */
@@ -109,8 +128,35 @@ export class ExerciseController {
     @Body() dto: UpdateExerciseLogDto,
     @Req() request: RequestWithUser,
   ) {
-    const userId = getRequestUserId(request as RequestWithUser);
+    const userId = getRequestUserId(request);
     const updated = await this.service.updateExerciseLog(userId, id, dto);
+
+    if (!updated) {
+      throw new NotFoundException('Exercise log not found');
+    }
+
+    return {
+      success: true,
+      data: updated,
+    };
+  }
+
+  /**
+   * PUT /exercise/log/:id/metrics
+   * Replace metrics for an exercise log
+   */
+  @Put('log/:id/metrics')
+  async replaceLogMetrics(
+    @Param('id') id: string,
+    @Body() dto: UpdateExerciseLogMetricsDto,
+    @Req() request: RequestWithUser,
+  ) {
+    const userId = getRequestUserId(request);
+    const updated = await this.service.replaceExerciseLogMetrics(
+      userId,
+      id,
+      dto.metrics,
+    );
 
     if (!updated) {
       throw new NotFoundException('Exercise log not found');
@@ -129,19 +175,17 @@ export class ExerciseController {
    * Create new exercise type (user-defined)
    */
   @Post('types')
-  async createExerciseType(@Body() dto: CreateExerciseTypeDto) {
-    try {
-      const result = await this.service.createExerciseType(dto);
-      return {
-        success: true,
-        data: result,
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new BadRequestException(error.message);
-    }
+  async createExerciseType(
+    @Body() dto: CreateExerciseTypeDto,
+    @Req() request: RequestWithUser,
+  ) {
+    const userId = getRequestUserId(request);
+    const result = await this.service.createExerciseType(userId, dto);
+
+    return {
+      success: true,
+      data: result,
+    };
   }
 
   /**
@@ -165,6 +209,21 @@ export class ExerciseController {
   @Get('types/system')
   async getSystemExerciseTypes() {
     const types = await this.service.getSystemExerciseTypes();
+    return {
+      success: true,
+      data: types,
+      count: types.length,
+    };
+  }
+
+  /**
+   * GET /exercise/types/user
+   * Get exercise types created by the current user
+   */
+  @Get('types/user')
+  async getUserExerciseTypes(@Req() request: RequestWithUser) {
+    const userId = getRequestUserId(request);
+    const types = await this.service.getUserExerciseTypes(userId);
     return {
       success: true,
       data: types,
@@ -198,24 +257,41 @@ export class ExerciseController {
   async updateExerciseType(
     @Param('id') id: string,
     @Body() dto: UpdateExerciseTypeDto,
+    @Req() request: RequestWithUser,
   ) {
-    try {
-      const updated = await this.service.updateExerciseType(id, dto);
+    const userId = getRequestUserId(request);
+    const updated = await this.service.updateExerciseType(userId, id, dto);
 
-      if (!updated) {
-        throw new NotFoundException('Exercise type not found');
-      }
-
-      return {
-        success: true,
-        data: updated,
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new BadRequestException(error.message);
+    if (!updated) {
+      throw new NotFoundException('Exercise type not found');
     }
+
+    return {
+      success: true,
+      data: updated,
+    };
+  }
+
+  /**
+   * DELETE /exercise/types/:id
+   * Delete a user-created exercise type
+   */
+  @Delete('types/:id')
+  async deleteExerciseType(
+    @Param('id') id: string,
+    @Req() request: RequestWithUser,
+  ) {
+    const userId = getRequestUserId(request);
+    const deleted = await this.service.deleteExerciseType(userId, id);
+
+    if (!deleted) {
+      throw new NotFoundException('Exercise type not found');
+    }
+
+    return {
+      success: true,
+      deleted: true,
+    };
   }
 
   /**
@@ -223,9 +299,7 @@ export class ExerciseController {
    * Get exercise types for category
    */
   @Get('categories/:categoryId/types')
-  async getExerciseTypesByCategory(
-    @Param('categoryId') categoryId: string,
-  ) {
+  async getExerciseTypesByCategory(@Param('categoryId') categoryId: string) {
     const types = await this.service.getExerciseTypesByCategory(categoryId);
     return {
       success: true,
