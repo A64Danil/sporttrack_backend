@@ -82,25 +82,6 @@ export class ExerciseService {
     return this.loadLogDetails(log);
   }
 
-  async getExerciseLogMetrics(
-    userId: string,
-    logId: string,
-  ): Promise<{ id: string; exerciseTypeId: string; metrics: Record<string, number> } | null> {
-    const log = await this.repository.getExerciseLog(logId);
-
-    if (!log || log.userId !== userId) {
-      return null;
-    }
-
-    const metrics = await this.repository.getMetricsByLog(logId);
-
-    return {
-      id: log.id,
-      exerciseTypeId: log.exerciseTypeId,
-      metrics: this.mapMetricsToObject(metrics),
-    };
-  }
-
   async getExerciseLogs(
     userId: string,
     query: {
@@ -116,11 +97,25 @@ export class ExerciseService {
 
     let logs: ExerciseLog[];
 
-    if (query.from && query.to) {
+    if (query.from && query.to && query.exerciseTypeId) {
+      logs = await this.repository.getExerciseLogsByUserTypeAndDateRange(
+        userId,
+        query.exerciseTypeId,
+        new Date(query.from),
+        new Date(query.to),
+      );
+    } else if (query.from && query.to) {
       logs = await this.repository.getExerciseLogsByUserAndDateRange(
         userId,
         new Date(query.from),
         new Date(query.to),
+      );
+    } else if (query.exerciseTypeId) {
+      logs = await this.repository.getExerciseLogsByUserAndType(
+        userId,
+        query.exerciseTypeId,
+        limit,
+        offset,
       );
     } else {
       logs = await this.repository.getExerciseLogsByUser(userId, limit, offset);
@@ -145,35 +140,6 @@ export class ExerciseService {
       : log.performedAt;
 
     return this.repository.updateExerciseLog(logId, performedAt);
-  }
-
-  async replaceExerciseLogMetrics(
-    userId: string,
-    logId: string,
-    metrics: Record<string, number>,
-  ): Promise<ExerciseLogDetails | null> {
-    return this.repository.transaction(async (executor) => {
-      const log = await this.repository.getExerciseLog(logId, executor);
-
-      if (!log || log.userId !== userId) {
-        return null;
-      }
-
-      const exerciseType = await this.repository.getExerciseType(
-        log.exerciseTypeId,
-        executor,
-      );
-
-      if (!exerciseType) {
-        throw new BadRequestException('Exercise type not found');
-      }
-
-      this.validateMetrics(metrics, exerciseType);
-
-      await this.repository.replaceMetricsForLog(log.id, metrics, executor);
-
-      return this.buildLogDetails(log, metrics);
-    });
   }
 
   // ==================== ExerciseType Operations ====================
@@ -339,23 +305,5 @@ export class ExerciseService {
     const metrics = await this.repository.getMetricsByLog(log.id);
 
     return this.buildLogDetails(log, this.mapMetricsToObject(metrics));
-  }
-
-  // ==================== Analytics ====================
-
-  async getUserStreak(userId: string): Promise<number> {
-    return this.repository.getUserStreakQuery(userId);
-  }
-
-  async getUserStats(userId: string): Promise<{
-    totalLogs: number;
-    streak: number;
-  }> {
-    const [totalLogs, streak] = await Promise.all([
-      this.repository.getUserTotalLogs(userId),
-      this.repository.getUserStreakQuery(userId),
-    ]);
-
-    return { totalLogs, streak };
   }
 }

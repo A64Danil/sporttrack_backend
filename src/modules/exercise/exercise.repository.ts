@@ -444,6 +444,29 @@ export class ExerciseRepository {
     return result.rows;
   }
 
+  async getExerciseLogsByUserAndType(
+    userId: string,
+    exerciseTypeId: string,
+    limit: number = 100,
+    offset: number = 0,
+    executor: SqlExecutor = this.database,
+  ): Promise<ExerciseLog[]> {
+    const query = `
+      SELECT 
+        id, 
+        user_id as "userId", 
+        exercise_type_id as "exerciseTypeId", 
+        performed_at as "performedAt", 
+        created_at as "createdAt"
+      FROM "ExerciseLog"
+      WHERE user_id = $1 AND exercise_type_id = $2
+      ORDER BY performed_at DESC
+      LIMIT $3 OFFSET $4
+    `;
+    const result = await executor.query(query, [userId, exerciseTypeId, limit, offset]);
+    return result.rows;
+  }
+
   async getExerciseLogsByUserAndDateRange(
     userId: string,
     fromDate: Date,
@@ -462,6 +485,33 @@ export class ExerciseRepository {
       ORDER BY performed_at DESC
     `;
     const result = await executor.query(query, [userId, fromDate, toDate]);
+    return result.rows;
+  }
+
+  async getExerciseLogsByUserTypeAndDateRange(
+    userId: string,
+    exerciseTypeId: string,
+    fromDate: Date,
+    toDate: Date,
+    executor: SqlExecutor = this.database,
+  ): Promise<ExerciseLog[]> {
+    const query = `
+      SELECT 
+        id, 
+        user_id as "userId", 
+        exercise_type_id as "exerciseTypeId", 
+        performed_at as "performedAt", 
+        created_at as "createdAt"
+      FROM "ExerciseLog"
+      WHERE user_id = $1 AND exercise_type_id = $2 AND performed_at BETWEEN $3 AND $4
+      ORDER BY performed_at DESC
+    `;
+    const result = await executor.query(query, [
+      userId,
+      exerciseTypeId,
+      fromDate,
+      toDate,
+    ]);
     return result.rows;
   }
 
@@ -583,54 +633,4 @@ export class ExerciseRepository {
     return created;
   }
 
-  // ==================== ANALYTICS QUERIES ====================
-
-  /**
-   * Get consecutive days with activity
-   */
-  async getUserStreakQuery(userId: string): Promise<number> {
-    const query = `
-      WITH daily_activity AS (
-        SELECT DISTINCT DATE(performed_at) as activity_date
-        FROM "ExerciseLog"
-        WHERE user_id = $1
-        ORDER BY activity_date DESC
-      ),
-      streaks AS (
-        SELECT 
-          activity_date,
-          ROW_NUMBER() OVER (ORDER BY activity_date DESC) as rn,
-          DATE(activity_date) - INTERVAL '1 day' * ROW_NUMBER() OVER (ORDER BY activity_date DESC) as streak_group
-        FROM daily_activity
-      )
-      SELECT 
-        COUNT(*) as streak
-      FROM streaks
-      WHERE streak_group = (
-        SELECT MAX(streak_group)
-        FROM streaks
-        LIMIT 1
-      )
-    `;
-
-    const result = await this.queryOne<{ streak: number }>(this.database, query, [
-      userId,
-    ]);
-    return result?.streak || 0;
-  }
-
-  /**
-   * Get total logs for user
-   */
-  async getUserTotalLogs(userId: string): Promise<number> {
-    const query = `
-      SELECT COUNT(*) as total
-      FROM "ExerciseLog"
-      WHERE user_id = $1
-    `;
-    const result = await this.queryOne<{ total: number }>(this.database, query, [
-      userId,
-    ]);
-    return result?.total || 0;
-  }
 }

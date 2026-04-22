@@ -96,8 +96,6 @@ export class ExerciseValidationPipe implements PipeTransform {
         return this.validateCreateExerciseLogDto(value);
       case 'UpdateExerciseLogDto':
         return this.validateUpdateExerciseLogDto(value);
-      case 'UpdateExerciseLogMetricsDto':
-        return this.validateUpdateExerciseLogMetricsDto(value);
       case 'CreateExerciseTypeDto':
         return this.validateCreateExerciseTypeDto(value);
       case 'UpdateExerciseTypeDto':
@@ -146,18 +144,6 @@ export class ExerciseValidationPipe implements PipeTransform {
 
     return {
       performedAt: value.performedAt ? String(value.performedAt) : undefined,
-    };
-  }
-
-  private validateUpdateExerciseLogMetricsDto(value: unknown) {
-    if (!isPlainObject(value)) {
-      throw new BadRequestException('Request body must be an object');
-    }
-
-    const metrics = validateMetricMap(value.metrics);
-
-    return {
-      metrics,
     };
   }
 

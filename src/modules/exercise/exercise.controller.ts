@@ -3,7 +3,6 @@ import {
   Post,
   Get,
   Patch,
-  Put,
   Delete,
   Body,
   Param,
@@ -16,7 +15,6 @@ import { ExerciseService } from './exercise.service';
 import {
   CreateExerciseLogDto,
   UpdateExerciseLogDto,
-  UpdateExerciseLogMetricsDto,
   CreateExerciseTypeDto,
   UpdateExerciseTypeDto,
   GetExerciseLogsQueryDto,
@@ -96,29 +94,6 @@ export class ExerciseController {
   }
 
   /**
-   * GET /exercise/log/:id/metrics
-   * Get metrics for a single exercise log
-   */
-  @Get('log/:id/metrics')
-  async getLogMetrics(
-    @Param('id') id: string,
-    @Req() request: RequestWithUser,
-  ) {
-    const userId = getRequestUserId(request);
-    const metrics = await this.service.getExerciseLogMetrics(userId, id);
-
-    if (!metrics) {
-      throw new NotFoundException('Exercise log not found');
-    }
-
-    return {
-      success: true,
-      data: metrics,
-      count: Object.keys(metrics.metrics).length,
-    };
-  }
-
-  /**
    * PATCH /exercise/log/:id
    * Update exercise log
    */
@@ -130,33 +105,6 @@ export class ExerciseController {
   ) {
     const userId = getRequestUserId(request);
     const updated = await this.service.updateExerciseLog(userId, id, dto);
-
-    if (!updated) {
-      throw new NotFoundException('Exercise log not found');
-    }
-
-    return {
-      success: true,
-      data: updated,
-    };
-  }
-
-  /**
-   * PUT /exercise/log/:id/metrics
-   * Replace metrics for an exercise log
-   */
-  @Put('log/:id/metrics')
-  async replaceLogMetrics(
-    @Param('id') id: string,
-    @Body() dto: UpdateExerciseLogMetricsDto,
-    @Req() request: RequestWithUser,
-  ) {
-    const userId = getRequestUserId(request);
-    const updated = await this.service.replaceExerciseLogMetrics(
-      userId,
-      id,
-      dto.metrics,
-    );
 
     if (!updated) {
       throw new NotFoundException('Exercise log not found');

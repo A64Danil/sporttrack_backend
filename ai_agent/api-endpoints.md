@@ -11,9 +11,7 @@ This file lists the endpoints that are currently implemented in the backend.
 - `POST /exercise/log`
 - `GET /exercise/logs`
 - `GET /exercise/log/:id`
-- `GET /exercise/log/:id/metrics` - Убрать в будущем
 - `PATCH /exercise/log/:id`
-- `PUT /exercise/log/:id/metrics`
 
 - `POST /exercise/types`
 - `GET /exercise/types`
