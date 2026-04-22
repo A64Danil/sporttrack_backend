@@ -1,4 +1,22 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
+import { DatabaseModule } from '../../shared/db/database.module';
+import { ANALYTICS_SYNC_PORT } from '../../shared/analytics/analytics-sync.port';
+import { AnalyticsController } from './analytics.controller';
+import { AnalyticsRepository } from './analytics.repository';
+import { AnalyticsService } from './analytics.service';
 
-@Module({})
+@Global()
+@Module({
+  imports: [DatabaseModule],
+  controllers: [AnalyticsController],
+  providers: [
+    AnalyticsService,
+    AnalyticsRepository,
+    {
+      provide: ANALYTICS_SYNC_PORT,
+      useExisting: AnalyticsService,
+    },
+  ],
+  exports: [AnalyticsService, AnalyticsRepository, ANALYTICS_SYNC_PORT],
+})
 export class AnalyticsModule {}

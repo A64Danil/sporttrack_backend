@@ -1,9 +1,12 @@
 import {
   BadRequestException,
+  Inject,
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
 import { ExerciseRepository } from '../exercise/exercise.repository';
+import { ANALYTICS_SYNC_PORT } from '../../shared/analytics/analytics-sync.port';
+import type { AnalyticsSyncPort } from '../../shared/analytics/analytics-sync.port';
 import { CreateWorkoutBlockDto, CreateWorkoutDto, CreateWorkoutItemDto, CompleteWorkoutDto } from './workout.dto';
 import { WorkoutRepository } from './workout.repository';
 import { SqlExecutor } from '../../shared/db/database.service';
@@ -23,6 +26,8 @@ export class WorkoutService {
   constructor(
     private readonly repository: WorkoutRepository,
     private readonly exerciseRepository: ExerciseRepository,
+    @Inject(ANALYTICS_SYNC_PORT)
+    private readonly analyticsService: AnalyticsSyncPort,
   ) {}
 
   async createWorkout(userId: string, dto: CreateWorkoutDto): Promise<Workout> {
@@ -190,6 +195,8 @@ export class WorkoutService {
           throw new BadRequestException('Failed to link workout item to exercise log');
         }
       }
+
+      await this.analyticsService.syncStreakCache(userId, executor);
 
       const completed = await this.repository.updateWorkoutFinishedAt(
         workoutId,

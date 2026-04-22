@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import { ANALYTICS_SYNC_PORT } from '../../shared/analytics/analytics-sync.port';
+import type { AnalyticsSyncPort } from '../../shared/analytics/analytics-sync.port';
 import { ExerciseRepository } from './exercise.repository';
 import {
   CreateExerciseLogDto,
@@ -26,7 +29,11 @@ type ExerciseLogDetails = {
 
 @Injectable()
 export class ExerciseService {
-  constructor(private repository: ExerciseRepository) {}
+  constructor(
+    private repository: ExerciseRepository,
+    @Inject(ANALYTICS_SYNC_PORT)
+    private readonly analyticsService: AnalyticsSyncPort,
+  ) {}
 
   // ==================== ExerciseLog Operations ====================
 
@@ -64,6 +71,7 @@ export class ExerciseService {
       }
 
       await this.repository.replaceMetricsForLog(log.id, dto.metrics, executor);
+      await this.analyticsService.syncStreakCache(userId, executor);
 
       return this.buildLogDetails(log, dto.metrics);
     });
@@ -129,17 +137,31 @@ export class ExerciseService {
     logId: string,
     dto: UpdateExerciseLogDto,
   ): Promise<ExerciseLog | null> {
-    const log = await this.repository.getExerciseLog(logId);
+    return this.repository.transaction(async (executor) => {
+      const log = await this.repository.getExerciseLog(logId, executor);
 
-    if (!log || log.userId !== userId) {
-      return null;
-    }
+      if (!log || log.userId !== userId) {
+        return null;
+      }
 
-    const performedAt = dto.performedAt
-      ? new Date(dto.performedAt)
-      : log.performedAt;
+      const performedAt = dto.performedAt
+        ? new Date(dto.performedAt)
+        : log.performedAt;
 
-    return this.repository.updateExerciseLog(logId, performedAt);
+      const updated = await this.repository.updateExerciseLog(
+        logId,
+        performedAt,
+        executor,
+      );
+
+      if (!updated) {
+        throw new BadRequestException('Failed to update exercise log');
+      }
+
+      await this.analyticsService.markStreakDirty(userId, executor);
+
+      return updated;
+    });
   }
 
   // ==================== ExerciseType Operations ====================

@@ -42,6 +42,15 @@ export interface ExerciseLogMetric {
   unit: string | null;
 }
 
+// User streak cache
+export interface UserStreakCache {
+  userId: string;
+  currentStreak: number;
+  lastActivityDate: Date | null;
+  isDirty: boolean;
+  lastCalculatedAt: Date;
+}
+
 // Workout Template
 export interface WorkoutTemplate {
   id: string;

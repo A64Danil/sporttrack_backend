@@ -165,6 +165,15 @@ CREATE TABLE "ExerciseLogMetric"
     unit            varchar
 );
 
+CREATE TABLE "UserStreakCache"
+(
+    user_id            uuid PRIMARY KEY REFERENCES "User" (id) ON DELETE CASCADE,
+    current_streak     int         NOT NULL DEFAULT 0,
+    last_activity_date date,
+    is_dirty           boolean     NOT NULL DEFAULT false,
+    last_calculated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- WORKOUTS
 
 CREATE TABLE "WorkoutTemplate"
@@ -243,6 +252,9 @@ CREATE INDEX idx_metric_log
 
 CREATE INDEX idx_metric_key
     ON "ExerciseLogMetric" (key);
+
+CREATE INDEX idx_user_streak_cache_dirty
+    ON "UserStreakCache" (is_dirty);
 
 CREATE INDEX idx_workout_user
     ON "Workout" (user_id);

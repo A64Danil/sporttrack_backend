@@ -36,12 +36,15 @@ This file lists the endpoints that are currently implemented in the backend.
 - `POST /workout/:id/items`
 - `POST /workout/:id/complete`
 
+## Analytics
+
+- `GET /analytics/streak`
+- `GET /analytics/summary`
+- `POST /analytics/recalculate`
+
 ## Planned but not yet implemented
 
 - `GET /users`
 - `POST /auth/login`
 - `POST /auth/refresh`
 - `POST /auth/logout`
-- `GET /analytics/streak`
-- `GET /analytics/summary`
-- `POST /analytics/recalculate`
