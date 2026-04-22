@@ -1,0 +1,44 @@
+# Implemented API Endpoints
+
+This file lists the endpoints that are currently implemented in the backend.
+
+## App
+
+- `GET /`
+
+## Exercise
+
+- `POST /exercise/log`
+- `GET /exercise/logs`
+- `GET /exercise/log/:id`
+- `GET /exercise/log/:id/metrics` - Убрать в будущем
+- `PATCH /exercise/log/:id`
+- `PUT /exercise/log/:id/metrics`
+
+- `POST /exercise/types`
+- `GET /exercise/types`
+- `GET /exercise/types/system`
+- `GET /exercise/types/user`
+- `GET /exercise/types/:id`
+- `PATCH /exercise/types/:id`
+- `DELETE /exercise/types/:id`
+
+- `GET /exercise/categories`
+- `GET /exercise/categories/:id`
+- `POST /exercise/categories`
+- `PATCH /exercise/categories/:id`
+- `DELETE /exercise/categories/:id`
+- `GET /exercise/categories/:categoryId/types`
+
+## Planned but not yet implemented
+
+- `GET /users`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `POST /workout`
+- `GET /workout/:id`
+- `POST /workout/:id/complete`
+- `GET /analytics/streak`
+- `GET /analytics/summary`
+- `POST /analytics/recalculate`
