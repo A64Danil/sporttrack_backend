@@ -44,6 +44,51 @@ export class ExerciseRepository {
     return result.rows;
   }
 
+  async updateCategory(
+    id: string,
+    data: Partial<{
+      name: string;
+      parentId: string | null;
+    }>,
+  ): Promise<ExerciseCategory | null> {
+    const updates: string[] = [];
+    const values: any[] = [id];
+    let paramCount = 2;
+
+    if (data.name !== undefined) {
+      updates.push(`name = $${paramCount}`);
+      values.push(data.name);
+      paramCount++;
+    }
+
+    if (data.parentId !== undefined) {
+      updates.push(`parent_id = $${paramCount}`);
+      values.push(data.parentId);
+      paramCount++;
+    }
+
+    if (updates.length === 0) {
+      return this.getCategory(id);
+    }
+
+    const query = `
+      UPDATE "ExerciseCategory"
+      SET ${updates.join(', ')}
+      WHERE id = $1
+      RETURNING id, name, parent_id as "parentId", created_at as "createdAt"
+    `;
+
+    return this.database.queryOne(query, values);
+  }
+
+  async deleteCategory(id: string): Promise<boolean> {
+    const result = await this.database.query(
+      `DELETE FROM "ExerciseCategory" WHERE id = $1`,
+      [id],
+    );
+    return result.rowCount > 0;
+  }
+
   // ==================== ExerciseType ====================
 
   async createExerciseType(data: {

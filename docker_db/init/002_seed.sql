@@ -3,7 +3,10 @@ VALUES ('11111111-1111-1111-1111-111111111111', now());
 
 INSERT INTO "ExerciseCategory" (id, name, created_at)
 VALUES
-    ('22222222-2222-2222-2222-222222222222', 'Push', now());
+    ('22222222-2222-2222-2222-222222222222', 'Push', now()),
+    ('22222222-2222-2222-2222-222222222223', 'Pull', now()),
+    ('22222222-2222-2222-2222-222222222224', 'Legs', now()),
+    ('22222222-2222-2222-2222-222222222225', 'Cardio', now());
 
 INSERT INTO "ExerciseType" (id, category_id, name, primary_metric, equipment_type, is_system, created_at)
 VALUES

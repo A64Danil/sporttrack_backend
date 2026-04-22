@@ -6,6 +6,10 @@ export interface ExerciseCategory {
   createdAt: Date;
 }
 
+export interface ExerciseCategoryTreeNode extends ExerciseCategory {
+  children?: ExerciseCategoryTreeNode[];
+}
+
 // Exercise Type
 export interface ExerciseType {
   id: string;

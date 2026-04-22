@@ -8,6 +8,7 @@ import {
   Query,
   BadRequestException,
   NotFoundException,
+  UsePipes,
 } from '@nestjs/common';
 import { ExerciseService } from './exercise.service';
 import {
@@ -17,13 +18,10 @@ import {
   UpdateExerciseTypeDto,
   GetExerciseLogsQueryDto,
 } from './dto/exercise.dto';
-
-// Mock: In real app, this would come from JWT guard
-const getCurrentUserId = (req: any): string => {
-  return req.user?.id || '11111111-1111-1111-1111-111111111111'; // seed user for demo
-};
+import { ExerciseValidationPipe } from '../../shared/validation/exercise-validation.pipe';
 
 @Controller('exercise')
+@UsePipes(ExerciseValidationPipe)
 export class ExerciseController {
   constructor(private service: ExerciseService) {}
 
@@ -38,7 +36,6 @@ export class ExerciseController {
     @Body() dto: CreateExerciseLogDto,
   ) {
     try {
-      console.log('Creating exercise log with DTO:', dto);
       // Mock userId - in real app use JWT guard
       const userId = '11111111-1111-1111-1111-111111111111';
       const result = await this.service.createExerciseLog(userId, dto);
@@ -47,7 +44,6 @@ export class ExerciseController {
         data: result,
       };
     } catch (error) {
-      console.error('Error creating exercise log:', error);
       if (error instanceof BadRequestException) {
         throw error;
       }

@@ -35,3 +35,15 @@ export class GetExerciseLogsQueryDto {
   limit?: number;
   offset?: number;
 }
+
+// Create Exercise Category DTO
+export class CreateExerciseCategoryDto {
+  name: string;
+  parentId?: string;
+}
+
+// Update Exercise Category DTO
+export class UpdateExerciseCategoryDto {
+  name?: string;
+  parentId?: string | null;
+}

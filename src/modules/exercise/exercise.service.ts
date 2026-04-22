@@ -24,15 +24,6 @@ export class ExerciseService {
     performedAt: Date;
     metrics: Record<string, number>;
   }> {
-    // Validate DTO
-    if (!dto.exerciseTypeId) {
-      throw new BadRequestException('exerciseTypeId is required');
-    }
-
-    if (!dto.metrics || Object.keys(dto.metrics).length === 0) {
-      throw new BadRequestException('metrics cannot be empty');
-    }
-
     // Verify exercise type exists
     const exerciseType = await this.repository.getExerciseType(
       dto.exerciseTypeId,
@@ -180,17 +171,6 @@ export class ExerciseService {
   async createExerciseType(
     dto: CreateExerciseTypeDto,
   ): Promise<ExerciseType | null> {
-    // Validate
-    if (!dto.name) {
-      throw new BadRequestException('name is required');
-    }
-    if (!dto.primaryMetric) {
-      throw new BadRequestException('primaryMetric is required');
-    }
-    if (!dto.equipmentType) {
-      throw new BadRequestException('equipmentType is required');
-    }
-
     // Validate primary metric
     const validMetrics = ['reps', 'time', 'distance', 'weight'];
     if (!validMetrics.includes(dto.primaryMetric)) {
@@ -272,44 +252,11 @@ export class ExerciseService {
     metrics: Record<string, number>,
     exerciseType: ExerciseType,
   ): void {
-    if (!exerciseType.primaryMetric) {
-      throw new BadRequestException('Exercise type has no primary metric');
-    }
-
     // Primary metric must be present
     if (!(exerciseType.primaryMetric in metrics)) {
       throw new BadRequestException(
         `Primary metric "${exerciseType.primaryMetric}" is required`,
       );
-    }
-
-    // Validate all metric keys are strings
-    for (const key of Object.keys(metrics)) {
-      if (typeof key !== 'string') {
-        throw new BadRequestException('Metric keys must be strings');
-      }
-
-      // Basic validation: no special characters, alphanumeric + underscores
-      if (!/^[a-zA-Z0-9_]+$/.test(key)) {
-        throw new BadRequestException(
-          `Invalid metric key: "${key}". Use only alphanumeric characters and underscores.`,
-        );
-      }
-
-      // Values must be numbers
-      const value = metrics[key];
-      if (typeof value !== 'number' || isNaN(value)) {
-        throw new BadRequestException(
-          `Metric value for "${key}" must be a valid number`,
-        );
-      }
-
-      // Values must be positive
-      if (value < 0) {
-        throw new BadRequestException(
-          `Metric value for "${key}" must be non-negative`,
-        );
-      }
     }
   }
 

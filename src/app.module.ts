@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from './modules/config/config.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { ExerciseCategoryModule } from './modules/exercise/category/exercise-category.module';
 import { ExerciseModule } from './modules/exercise/exercise.module';
 import { DatabaseModule } from './shared/db/database.module';
 import { MigrationsModule } from './shared/db/migrations/migrations.module';
@@ -16,6 +17,7 @@ import { WorkoutModule } from './modules/workout/workout.module';
     DatabaseModule,
     MigrationsModule,
     ExerciseModule,
+    ExerciseCategoryModule,
     WorkoutModule,
     AnalyticsModule,
     AuthModule,
