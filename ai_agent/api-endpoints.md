@@ -28,15 +28,20 @@ This file lists the endpoints that are currently implemented in the backend.
 - `DELETE /exercise/categories/:id`
 - `GET /exercise/categories/:categoryId/types`
 
+## Workout
+
+- `POST /workout`
+- `GET /workout/:id`
+- `POST /workout/:id/blocks`
+- `POST /workout/:id/items`
+- `POST /workout/:id/complete`
+
 ## Planned but not yet implemented
 
 - `GET /users`
 - `POST /auth/login`
 - `POST /auth/refresh`
 - `POST /auth/logout`
-- `POST /workout`
-- `GET /workout/:id`
-- `POST /workout/:id/complete`
 - `GET /analytics/streak`
 - `GET /analytics/summary`
 - `POST /analytics/recalculate`
