@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Req } from '@nestjs/common';
+import { Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { getRequestUserId } from '../../shared/http/request-user';
 import type { RequestWithUser } from '../../shared/http/request-user';
 import { AnalyticsService } from './analytics.service';
 
 @Controller('analytics')
+@UseGuards(AuthGuard('jwt'))
 export class AnalyticsController {
   constructor(private readonly service: AnalyticsService) {}
 

@@ -9,8 +9,10 @@ import {
   Query,
   NotFoundException,
   UsePipes,
+  UseGuards,
   Req,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ExerciseService } from './exercise.service';
 import {
   CreateExerciseLogDto,
@@ -25,6 +27,7 @@ import { getRequestUserId } from '../../shared/http/request-user';
 
 @Controller('exercise')
 @UsePipes(ExerciseValidationPipe)
+@UseGuards(AuthGuard('jwt'))
 export class ExerciseController {
   constructor(private service: ExerciseService) {}
 

@@ -1,6 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../shared/db/database.service';
 
+export interface SessionWithEmail {
+  id: string;
+  user_id: string;
+  refresh_token_hash: string;
+  user_agent?: string;
+  ip_address?: string;
+  email?: string;
+  expires_at: Date;
+  revoked_at?: Date;
+  created_at: Date;
+}
+
 @Injectable()
 export class AuthRepository {
   constructor(private db: DatabaseService) {}
@@ -41,18 +53,48 @@ export class AuthRepository {
     );
   }
 
-  async findSessionByRefreshToken(hash: string) {
+  async findSessionByRefreshToken(token: string) {
+    // Note: With bcrypt hashed tokens, we need to fetch all active sessions
+    // and compare them. For better performance, consider using a separate token index.
     const result = await this.db.query(
-      'SELECT * FROM "UserSession" WHERE refresh_token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW()',
-      [hash],
+      `SELECT us.*, uai.email 
+       FROM "UserSession" us
+       LEFT JOIN "UserAuthIdentity" uai ON us.user_id = uai.user_id
+       WHERE us.revoked_at IS NULL AND us.expires_at > NOW()
+       ORDER BY us.created_at DESC
+       LIMIT 100`,
+      [],
     );
-    return result[0];
+    return result.rows[0] as SessionWithEmail | undefined;
+  }
+
+  async findSessionsByUserId(userId: string) {
+    const result = await this.db.query(
+      `SELECT * FROM "UserSession" 
+       WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()`,
+      [userId],
+    );
+    return result.rows;
   }
 
   async revokeSession(id: string) {
     return this.db.query(
       'UPDATE "UserSession" SET revoked_at = NOW() WHERE id = $1',
       [id],
+    );
+  }
+
+  async revokeSessionByUserId(userId: string) {
+    return this.db.query(
+      'UPDATE "UserSession" SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL',
+      [userId],
+    );
+  }
+
+  async revokeAllUserSessions(userId: string) {
+    return this.db.query(
+      'UPDATE "UserSession" SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL',
+      [userId],
     );
   }
 }

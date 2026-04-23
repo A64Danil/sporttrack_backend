@@ -7,7 +7,9 @@ import {
   Post,
   Req,
   UsePipes,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { getRequestUserId } from '../../shared/http/request-user';
 import type { RequestWithUser } from '../../shared/http/request-user';
 import {
@@ -21,6 +23,7 @@ import { WorkoutService } from './workout.service';
 
 @Controller('workout')
 @UsePipes(WorkoutValidationPipe)
+@UseGuards(AuthGuard('jwt'))
 export class WorkoutController {
   constructor(private readonly service: WorkoutService) {}
 

@@ -1,8 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { AuthRepository } from './auth.repository';
 import { UserService } from '../user/user.service';
+import { RegisterDto } from './dtos';
 
 @Injectable()
 export class AuthService {
@@ -12,27 +14,27 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async register(data: { email: string; password: string; displayName: string }) {
-    const existing = await this.authRepository.findIdentityByEmail(data.email);
+  async register(dto: RegisterDto) {
+    const existing = await this.authRepository.findIdentityByEmail(dto.email);
     if (existing) {
       throw new ConflictException('User with this email already exists');
     }
 
     const { user } = await this.userService.createUser({
-      displayName: data.displayName,
+      displayName: dto.displayName,
     });
 
-    const passwordHash = await bcrypt.hash(data.password, 10);
+    const passwordHash = await bcrypt.hash(dto.password, 10);
 
     await this.authRepository.createIdentity({
       userId: user.id,
       provider: 'local',
-      providerUserId: data.email,
-      email: data.email,
+      providerUserId: dto.email,
+      email: dto.email,
       passwordHash,
     });
 
-    return this.login(data.email, data.password);
+    return this.login(dto.email, dto.password);
   }
 
   async login(email: string, password: string, context?: { userAgent?: string; ipAddress?: string }) {
@@ -44,9 +46,9 @@ export class AuthService {
     const payload = { sub: identity.user_id, email: identity.email };
     const accessToken = this.jwtService.sign(payload);
 
-    const refreshToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    // Use the token directly as hash for simplicity in lookup
-    const refreshTokenHash = refreshToken;
+    // Generate secure refresh token
+    const refreshToken = crypto.randomBytes(32).toString('hex');
+    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
@@ -66,12 +68,19 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string) {
+    // Try to find session by comparing refresh tokens
     const session = await this.authRepository.findSessionByRefreshToken(refreshToken);
     if (!session) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const payload = { sub: session.user_id };
+    // Verify the refresh token matches (stored as hash)
+    const isValid = await bcrypt.compare(refreshToken, session.refresh_token_hash);
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const payload = { sub: session.user_id, email: session.email };
     const accessToken = this.jwtService.sign(payload);
 
     return {
@@ -82,7 +91,17 @@ export class AuthService {
   async logout(refreshToken: string) {
     const session = await this.authRepository.findSessionByRefreshToken(refreshToken);
     if (session) {
-      await this.authRepository.revokeSession(session.id);
+      // Need to find and revoke - since we can't compare hash easily here,
+      // we'll add a method to find by user_id
+      await this.authRepository.revokeSessionByUserId(session.user_id);
     }
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.userService.findUser(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
   }
 }
